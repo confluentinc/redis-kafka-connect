@@ -26,6 +26,12 @@ public abstract class RedisConfigDef extends ConfigDef {
 
 	private static final String PORT_DOC = "The Redis port to connect to";
 
+	public static final String DATABASE_CONFIG = "redis.database";
+
+	private static final int DATABASE_DEFAULT = 0;
+
+	private static final String DATABASE_DOC = "The database to connect to";
+
 	public static final String URI_CONFIG = "redis.uri";
 
 	private static final String URI_DEFAULT = "";
@@ -105,6 +111,7 @@ public abstract class RedisConfigDef extends ConfigDef {
 		define(CLUSTER_CONFIG, Type.BOOLEAN, CLUSTER_DEFAULT, Importance.MEDIUM, CLUSTER_DOC);
 		define(HOST_CONFIG, Type.STRING, HOST_DEFAULT, Importance.HIGH, HOST_DOC);
 		define(PORT_CONFIG, Type.INT, PORT_DEFAULT, Importance.HIGH, PORT_DOC);
+		define(DATABASE_CONFIG, Type.INT, DATABASE_DEFAULT, Importance.MEDIUM, DATABASE_DOC);
 		define(URI_CONFIG, Type.STRING, URI_DEFAULT, Importance.MEDIUM, URI_DOC);
 		define(TLS_CONFIG, Type.BOOLEAN, TLS_DEFAULT, Importance.MEDIUM, TLS_DOC);
 		define(INSECURE_CONFIG, Type.BOOLEAN, INSECURE_DEFAULT, Importance.MEDIUM, INSECURE_DOC);

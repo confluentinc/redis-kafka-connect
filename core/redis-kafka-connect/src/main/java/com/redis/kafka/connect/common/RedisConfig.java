@@ -77,7 +77,8 @@ public abstract class RedisConfig extends AbstractConfig {
         }
         String host = getString(RedisConfigDef.HOST_CONFIG);
         int port = getInt(RedisConfigDef.PORT_CONFIG);
-        return RedisURI.Builder.redis(host, port);
+        int database = getInt(RedisConfigDef.DATABASE_CONFIG);
+        return RedisURI.Builder.redis(host, port).withDatabase(database);
     }
 
     private AbstractRedisClient client(RedisURI uri) {
