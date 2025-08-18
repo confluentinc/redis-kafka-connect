@@ -216,7 +216,9 @@ public class RedisSinkTask extends SinkTask {
                     try {
                         return Long.parseLong(header.value().toString());
                     } catch (NumberFormatException e) {
-                        log.warn("Invalid TTL header value for record {}: {}", record, header.value());
+                        log.warn("Invalid TTL header value for record {}-{} at offset {}: {}",
+                            record.topic(), record.kafkaPartition(), record.kafkaOffset(),
+                            header.value());
                     }
                 }
             }
