@@ -91,19 +91,15 @@ public class RedisKeysSourceTask extends SourceTask {
 		}
 	}
 
-	/*
-	 * Why sourceOffsets implementation was removed?
-	 * Explained here - https://confluentinc.atlassian.net/browse/CC-36370
-	 */
 	@Deprecated
 	@Override
 	public void commitRecord(SourceRecord sourceRecord) throws InterruptedException {
-		super.commitRecord(sourceRecord);
+		// do nothing - offset tracking not needed for Redis key monitoring
 	}
 
 	@Override
 	public void commit() throws InterruptedException {
-		super.commit();
+		// do nothing
 	}
 
 	@Override
