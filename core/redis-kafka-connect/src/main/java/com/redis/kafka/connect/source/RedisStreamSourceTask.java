@@ -111,17 +111,22 @@ public class RedisStreamSourceTask extends SourceTask {
 	public void commitRecord(SourceRecord sourceRecord, RecordMetadata metadata) throws InterruptedException {
 		Map<String, ?> currentOffset = sourceRecord.sourceOffset();
 		if (currentOffset != null) {
-			sourceOffsets.add(currentOffset);
+			synchronized (sourceOffsets) {
+				sourceOffsets.add(currentOffset);
+			}
 		}
 	}
 
 	@Override
 	public void commit() throws InterruptedException {
 		if (reader != null) {
-			String[] ids = sourceOffsets.stream().map(m -> (String) m.get(OFFSET_FIELD)).toArray(String[]::new);
 			try {
-				reader.ack(config.getStreamName(), ids);
-				sourceOffsets.clear();
+				synchronized (sourceOffsets) {
+					String[] ids =
+							sourceOffsets.stream().map(m -> (String) m.get(OFFSET_FIELD)).toArray(String[]::new);
+					reader.ack(config.getStreamName(), ids);
+					sourceOffsets.clear();
+				}
 			} catch (Exception e) {
 				throw new ConnectException("Could not ack offsets to Redis", e);
 			}

@@ -63,6 +63,9 @@ public class ToStructFunction implements Function<KeyValue<String>, Struct> {
 		Struct struct = new Struct(VALUE_SCHEMA);
 		struct.put(FIELD_KEY, input.getKey());
 		struct.put(FIELD_TTL, input.getTtl());
+		if (input.getType() == null) {
+			input.setType(KeyValue.TYPE_NONE);
+		}
 		struct.put(FIELD_TYPE, input.getType());
 		if (input.getType() != null) {
 			switch (input.getType()) {
