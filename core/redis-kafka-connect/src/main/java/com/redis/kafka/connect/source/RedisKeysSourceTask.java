@@ -91,6 +91,10 @@ public class RedisKeysSourceTask extends SourceTask {
 		}
 	}
 
+	/*
+	 * Why sourceOffsets implementation was removed?
+	 * Explained here - https://confluentinc.atlassian.net/browse/CC-36370
+	 */
 	@Deprecated
 	@Override
 	public void commitRecord(SourceRecord sourceRecord) throws InterruptedException {
