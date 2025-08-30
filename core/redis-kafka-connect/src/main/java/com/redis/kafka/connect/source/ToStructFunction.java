@@ -39,7 +39,7 @@ public class ToStructFunction implements Function<KeyValue<String>, Struct> {
 
 	public static final Schema TTL_SCHEMA = Schema.OPTIONAL_INT64_SCHEMA;
 
-	public static final Schema TYPE_SCHEMA = Schema.STRING_SCHEMA;
+	public static final Schema TYPE_SCHEMA = Schema.OPTIONAL_STRING_SCHEMA;
 
 	public static final String VALUE_SCHEMA_NAME = "com.redis.kafka.connect.keys.Value";
 
@@ -63,9 +63,6 @@ public class ToStructFunction implements Function<KeyValue<String>, Struct> {
 		Struct struct = new Struct(VALUE_SCHEMA);
 		struct.put(FIELD_KEY, input.getKey());
 		struct.put(FIELD_TTL, input.getTtl());
-		if (input.getType() == null) {
-			input.setType(KeyValue.TYPE_NONE);
-		}
 		struct.put(FIELD_TYPE, input.getType());
 		if (input.getType() != null) {
 			switch (input.getType()) {
