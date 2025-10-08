@@ -19,8 +19,12 @@ import java.io.File;
 import java.time.Duration;
 import java.util.Map;
 
+import io.lettuce.core.RedisCredentialsProvider;
+import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.types.Password;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import com.redis.lettucemod.RedisModulesClient;
@@ -36,6 +40,10 @@ import io.lettuce.core.cluster.ClusterClientOptions;
 public abstract class RedisConfig extends AbstractConfig {
 
     private static final char[] EMPTY_PASSWORD = new char[0];
+    public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER =
+        "RedisIamAssumeCredentialsProvider";
+    public static final String CREDENTIALS_PROVIDER_CONFIG_PREFIX = "redis.credentials.";
+    private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
         super(config, originals);
@@ -51,18 +59,25 @@ public abstract class RedisConfig extends AbstractConfig {
                 builder.withVerifyPeer(false);
             }
         }
-        Password password = getPassword(RedisConfigDef.PASSWORD_CONFIG);
-        if (password != null) {
-            String passwordString = password.value();
-            if (StringUtils.hasLength(passwordString)) {
-                String username = getString(RedisConfigDef.USERNAME_CONFIG);
-                if (StringUtils.hasLength(username)) {
-                    builder.withAuthentication(username, passwordString);
-                } else {
-                    builder.withPassword((CharSequence) passwordString);
+
+        RedisCredentialsProvider credentialsProvider = getCredentialsProvider();
+        if (credentialsProvider != null) {
+            builder.withAuthentication(credentialsProvider);
+        } else {
+            Password password = getPassword(RedisConfigDef.PASSWORD_CONFIG);
+            if (password != null) {
+                String passwordString = password.value();
+                if (StringUtils.hasLength(passwordString)) {
+                    String username = getString(RedisConfigDef.USERNAME_CONFIG);
+                    if (StringUtils.hasLength(username)) {
+                        builder.withAuthentication(username, passwordString);
+                    } else {
+                        builder.withPassword((CharSequence) passwordString);
+                    }
                 }
             }
         }
+
         Long timeout = getLong(RedisConfigDef.TIMEOUT_CONFIG);
         if (timeout != null) {
             builder.withTimeout(Duration.ofSeconds(timeout));
@@ -116,6 +131,26 @@ public abstract class RedisConfig extends AbstractConfig {
 
     public AbstractRedisClient client() {
         return client(uri());
+    }
+
+    private RedisCredentialsProvider getCredentialsProvider() {
+        RedisCredentialsProvider provider;
+        try {
+            Class<?> className = getClass(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER);
+            provider = className.asSubclass(RedisCredentialsProvider.class).getDeclaredConstructor()
+                .newInstance();
+
+            if (!(provider instanceof Configurable)) {
+                return null;
+            }
+
+            Map<String, Object> configs = originalsWithPrefix(CREDENTIALS_PROVIDER_CONFIG_PREFIX);
+            ((Configurable) provider).configure(configs);
+            return provider;
+        } catch (ReflectiveOperationException e) {
+            logger.error("Failed to instantiate RedisIamAuthCredentialsProvider", e);
+        }
+        return null;
     }
 
     public int getPoolSize() {
