@@ -149,7 +149,7 @@ public abstract class RedisConfig extends AbstractConfig {
         logger.info("RedisCredentialsProvider, configs: {}", configs);
 
         try {
-            logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
+            logger.debug("Attempting to instantiate RedisCredentialsProvider}");
             Class<?> providerClass = getClass(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
             Class<? extends RedisCredentialsProvider> typedClass = 
                 providerClass.asSubclass(RedisCredentialsProvider.class);
@@ -159,18 +159,18 @@ public abstract class RedisConfig extends AbstractConfig {
             constructor.setAccessible(true);
             
             RedisCredentialsProvider provider = constructor.newInstance();
-            logger.info("Successfully instantiated RedisCredentialsProvider: {}", className);
+            logger.info("Successfully instantiated RedisCredentialsProvider");
             
             if (!(provider instanceof Configurable)) {
-                logger.warn("RedisCredentialsProvider {} is not Configurable, returning null", className);
+                logger.warn("RedisCredentialsProvider is not Configurable, returning null");
                 return null;
             }
             
             ((Configurable) provider).configure(configs);
-            logger.info("RedisCredentialsProvider {} successfully configured and ready", className);
+            logger.info("RedisCredentialsProvider successfully configured and ready");
             return provider;
         } catch (ReflectiveOperationException e) {
-          logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
+          logger.error("Failed to instantiate RedisCredentialsProvider", e);
           return null;
         }
     }
