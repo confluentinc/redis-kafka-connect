@@ -148,9 +148,15 @@ public abstract class RedisConfig extends AbstractConfig {
 
         logger.info("RedisCredentialsProvider, configs: {}", configs);
 
+        String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        if (!StringUtils.hasLength(className)) {
+            logger.debug("No credentials provider class configured, returning null");
+            return null;
+        }
+
         try {
-            logger.debug("Attempting to instantiate RedisCredentialsProvider}");
-            Class<?> providerClass = getClass(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+            logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
+            Class<?> providerClass = Class.forName(className);
             Class<? extends RedisCredentialsProvider> typedClass = 
                 providerClass.asSubclass(RedisCredentialsProvider.class);
                 
@@ -159,18 +165,18 @@ public abstract class RedisConfig extends AbstractConfig {
             constructor.setAccessible(true);
             
             RedisCredentialsProvider provider = constructor.newInstance();
-            logger.info("Successfully instantiated RedisCredentialsProvider");
+            logger.info("Successfully instantiated RedisCredentialsProvider: {}", className);
             
             if (!(provider instanceof Configurable)) {
-                logger.warn("RedisCredentialsProvider is not Configurable, returning null");
+                logger.warn("RedisCredentialsProvider {} is not Configurable, returning null", className);
                 return null;
             }
             
             ((Configurable) provider).configure(configs);
-            logger.info("RedisCredentialsProvider successfully configured and ready");
+            logger.info("RedisCredentialsProvider {} successfully configured and ready", className);
             return provider;
         } catch (ReflectiveOperationException e) {
-          logger.error("Failed to instantiate RedisCredentialsProvider", e);
+          logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
           return null;
         }
     }
