@@ -136,12 +136,6 @@ public abstract class RedisConfig extends AbstractConfig {
     }
 
     private RedisCredentialsProvider getCredentialsProvider() {
-        String className = getString(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
-        if (!StringUtils.hasLength(className)) {
-            logger.debug("No credentials provider class configured, returning null");
-            return null;
-        }
-
         Map<String, Object> configs = new HashMap<>(originals());
         configs.put("rediskafka.provider.aws.region",
             configs.get("rediskafka.credentials.provider.aws.cluster.region"));
@@ -151,6 +145,14 @@ public abstract class RedisConfig extends AbstractConfig {
             configs.get("redis.username"));
         configs.put("rediskafka.provider.service.name",
             toLowerCase(configs.get("rediskafka.credentials.provider.aws.cluster.service.name")));
+
+        logger.info("RedisCredentialsProvider, configs: {}", configs);
+
+        String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        if (!StringUtils.hasLength(className)) {
+            logger.debug("No credentials provider class configured, returning null");
+            return null;
+        }
 
         try {
             logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
