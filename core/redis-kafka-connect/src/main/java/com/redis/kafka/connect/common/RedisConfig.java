@@ -16,7 +16,9 @@
 package com.redis.kafka.connect.common;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 import io.lettuce.core.RedisCredentialsProvider;
@@ -40,8 +42,8 @@ import io.lettuce.core.cluster.ClusterClientOptions;
 public abstract class RedisConfig extends AbstractConfig {
 
     private static final char[] EMPTY_PASSWORD = new char[0];
-    public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER =
-        "RedisIamAssumeCredentialsProvider";
+    public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY =
+        "rediskafka.credentials.provider.aws.class";
     public static final String CREDENTIALS_PROVIDER_CONFIG_PREFIX = "redis.credentials.";
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
@@ -134,23 +136,51 @@ public abstract class RedisConfig extends AbstractConfig {
     }
 
     private RedisCredentialsProvider getCredentialsProvider() {
-        RedisCredentialsProvider provider;
-        try {
-            Class<?> className = getClass(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER);
-            provider = className.asSubclass(RedisCredentialsProvider.class).getDeclaredConstructor()
-                .newInstance();
+        String className = getString(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        if (!StringUtils.hasLength(className)) {
+            logger.debug("No credentials provider class configured, returning null");
+            return null;
+        }
 
+        Map<String, Object> configs = new HashMap<>(originals());
+        configs.put("rediskafka.provider.aws.region",
+            configs.get("rediskafka.credentials.provider.aws.cluster.region"));
+        configs.put("rediskafka.provider.aws.redis.cluster.name",
+            configs.get("rediskafka.credentials.provider.aws.cluster.name"));
+        configs.put("rediskafka.provider.username",
+            configs.get("redis.username"));
+        configs.put("rediskafka.provider.service.name",
+            toLowerCase(configs.get("rediskafka.credentials.provider.aws.cluster.service.name")));
+
+        try {
+            logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
+            Class<?> providerClass = getClass(className);
+            Class<? extends RedisCredentialsProvider> typedClass = 
+                providerClass.asSubclass(RedisCredentialsProvider.class);
+                
+            Constructor<? extends RedisCredentialsProvider> constructor = 
+                typedClass.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            
+            RedisCredentialsProvider provider = constructor.newInstance();
+            logger.info("Successfully instantiated RedisCredentialsProvider: {}", className);
+            
             if (!(provider instanceof Configurable)) {
+                logger.warn("RedisCredentialsProvider {} is not Configurable, returning null", className);
                 return null;
             }
-
-            Map<String, Object> configs = originalsWithPrefix(CREDENTIALS_PROVIDER_CONFIG_PREFIX);
+            
             ((Configurable) provider).configure(configs);
+            logger.info("RedisCredentialsProvider {} successfully configured and ready", className);
             return provider;
         } catch (ReflectiveOperationException e) {
-            logger.error("Failed to instantiate RedisIamAuthCredentialsProvider", e);
+          logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
+          return null;
         }
-        return null;
+    }
+
+    private String toLowerCase(Object value) {
+        return value != null ? value.toString().toLowerCase() : null;
     }
 
     public int getPoolSize() {
