@@ -148,15 +148,9 @@ public abstract class RedisConfig extends AbstractConfig {
 
         logger.info("RedisCredentialsProvider, configs: {}", configs);
 
-        String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
-        if (!StringUtils.hasLength(className)) {
-            logger.debug("No credentials provider class configured, returning null");
-            return null;
-        }
-
         try {
             logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
-            Class<?> providerClass = getClass(className);
+            Class<?> providerClass = getClass(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
             Class<? extends RedisCredentialsProvider> typedClass = 
                 providerClass.asSubclass(RedisCredentialsProvider.class);
                 
