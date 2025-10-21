@@ -147,6 +147,7 @@ public abstract class RedisConfig extends AbstractConfig {
             configs.get("redis.username"));
         configs.put("rediskafka.provider.service.name",
             toLowerCase(configs.get("rediskafka.credentials.provider.aws.cluster.service.name")));
+        configs.put("aws.credentials.expiration.duration.secs", "900");
 
         logger.info("RedisCredentialsProvider, configs: {}", configs);
 
