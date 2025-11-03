@@ -139,26 +139,14 @@ public abstract class RedisConfig extends AbstractConfig {
 
     private RedisCredentialsProvider getCredentialsProvider() {
         Map<String, Object> configs = new HashMap<>(originals());
-        configs.put("rediskafka.provider.aws.region",
-            configs.get("rediskafka.credentials.provider.aws.cluster.region"));
-        configs.put("rediskafka.provider.aws.redis.cluster.name",
-            configs.get("rediskafka.credentials.provider.aws.cluster.name"));
-        configs.put("rediskafka.provider.username",
-            configs.get("redis.username"));
-        configs.put("rediskafka.provider.service.name",
-            toLowerCase(configs.get("rediskafka.cluster.service.name")));
-        configs.put("aws.credentials.expiration.duration.secs", "900");
-
-        logger.info("RedisCredentialsProvider, configs: {}", configs);
 
         String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
         if (!StringUtils.hasLength(className)) {
-            logger.debug("No credentials provider class configured, returning null");
+            logger.info("No credentials provider class configured, returning null");
             return null;
         }
 
         try {
-            logger.debug("Attempting to instantiate RedisCredentialsProvider: {}", className);
             Class<?> providerClass = Class.forName(className);
             Class<? extends RedisCredentialsProvider> typedClass = 
                 providerClass.asSubclass(RedisCredentialsProvider.class);
@@ -182,10 +170,6 @@ public abstract class RedisConfig extends AbstractConfig {
           logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
           return null;
         }
-    }
-
-    private String toLowerCase(Object value) {
-        return value != null ? value.toString().toLowerCase() : null;
     }
 
     public int getPoolSize() {
