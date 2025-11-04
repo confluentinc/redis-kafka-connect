@@ -65,8 +65,6 @@ public abstract class RedisConfig extends AbstractConfig {
         RedisCredentialsProvider credentialsProvider = getCredentialsProvider();
         if (credentialsProvider != null) {
             builder.withAuthentication(credentialsProvider);
-            logger.info("RedisCredentialsProvider, creds: {}",
-                 credentialsProvider.resolveCredentials().block().getPassword());
         } else {
             Password password = getPassword(RedisConfigDef.PASSWORD_CONFIG);
             if (password != null) {
