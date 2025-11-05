@@ -84,42 +84,41 @@
             <version>${kafka.version}</version>
         </dependency>
 
-        <!-- Netty dependencies as provided to use Kafka Connect's version -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-common</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-handler</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-resolver</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-buffer</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-codec</artifactId>
             <version>4.2.4.Final</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <!-- Test dependencies -->
