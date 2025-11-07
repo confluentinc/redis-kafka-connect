@@ -78,7 +78,6 @@ public abstract class RedisConfig extends AbstractConfig {
                 }
             }
         }
-
         Long timeout = getLong(RedisConfigDef.TIMEOUT_CONFIG);
         if (timeout != null) {
             builder.withTimeout(Duration.ofSeconds(timeout));
