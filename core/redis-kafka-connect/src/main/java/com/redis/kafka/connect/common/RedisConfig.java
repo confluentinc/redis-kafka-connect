@@ -44,7 +44,6 @@ public abstract class RedisConfig extends AbstractConfig {
     private static final char[] EMPTY_PASSWORD = new char[0];
     public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY =
         "rediskafka.credentials.provider.aws.class";
-    public static final String CREDENTIALS_PROVIDER_CONFIG_PREFIX = "redis.credentials.";
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
