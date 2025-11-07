@@ -149,8 +149,7 @@ public abstract class RedisConfig extends AbstractConfig {
                 
             Constructor<? extends RedisCredentialsProvider> constructor = 
                 typedClass.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            
+
             RedisCredentialsProvider provider = constructor.newInstance();
             logger.info("Successfully instantiated RedisCredentialsProvider: {}", className);
             
