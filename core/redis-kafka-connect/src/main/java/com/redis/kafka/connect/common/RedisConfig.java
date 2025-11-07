@@ -146,17 +146,9 @@ public abstract class RedisConfig extends AbstractConfig {
             Class<?> providerClass = Class.forName(className);
             Class<? extends RedisCredentialsProvider> typedClass = 
                 providerClass.asSubclass(RedisCredentialsProvider.class);
-                
-            Constructor<? extends RedisCredentialsProvider> constructor = 
-                typedClass.getDeclaredConstructor();
 
-            RedisCredentialsProvider provider = constructor.newInstance();
+            RedisCredentialsProvider provider = typedClass.getDeclaredConstructor().newInstance();
             logger.info("Successfully instantiated RedisCredentialsProvider: {}", className);
-            
-            if (!(provider instanceof Configurable)) {
-                logger.warn("RedisCredentialsProvider {} is not Configurable, returning null", className);
-                return null;
-            }
             
             ((Configurable) provider).configure(configs);
             logger.info("RedisCredentialsProvider {} successfully configured and ready", className);
