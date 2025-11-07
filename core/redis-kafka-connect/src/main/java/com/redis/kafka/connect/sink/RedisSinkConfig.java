@@ -38,11 +38,9 @@ public class RedisSinkConfig extends RedisConfig {
 	private final int waitReplicas;
 	private final Duration waitTimeout;
 	private final long keyTTL;
-	private final Map<?, ?> originals;
 
 	public RedisSinkConfig(Map<?, ?> originals) {
 		super(new RedisSinkConfigDef(), originals);
-		this.originals = originals;
 		String charsetName = getString(RedisSinkConfigDef.CHARSET_CONFIG).trim();
 		charset = Charset.forName(charsetName);
 		type = RedisType.valueOf(getString(RedisSinkConfigDef.TYPE_CONFIG));
