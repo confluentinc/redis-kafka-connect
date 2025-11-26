@@ -1,4 +1,4 @@
-ARG CP_VERSION=7.7.0
+ARG CP_VERSION=8.0.0
 ARG BASE_PREFIX=confluentinc
 ARG CONNECT_IMAGE=cp-kafka-connect
 
