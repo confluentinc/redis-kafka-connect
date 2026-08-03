@@ -31,6 +31,7 @@
         <awaitility.version>4.2.0</awaitility.version>
         <slf4j.version>2.0.9</slf4j.version>
         <commons-pool2.version>2.11.1</commons-pool2.version>
+        <jackson.version>2.21.1</jackson.version>
         <kafka.version>3.7.0</kafka.version>
         <kafka-connect-api.version>${kafka.version}</kafka-connect-api.version>
         <kafka-connect-json.version>${kafka.version}</kafka-connect-json.version>
@@ -101,6 +102,18 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Keeps jackson-core, -databind and -annotations on one release train.
+                 Never pin these individually: annotations ships as 2.21 while core and
+                 databind ship as 2.21.1, and a partial pin splits databind from core
+                 (NoSuchMethodError BufferRecycler.releaseToPool at runtime). -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- Test dependencies -->
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
