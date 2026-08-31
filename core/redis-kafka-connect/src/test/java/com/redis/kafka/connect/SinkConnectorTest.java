@@ -17,19 +17,19 @@ import com.redis.kafka.connect.sink.RedisSinkTask;
 
 class SinkConnectorTest {
 
-	// Synthetic secret embedded in a redis.uri to prove the config dump does not leak it.
+	// Synthetic secret embedded in a redis.uri to prove the config dump masks it.
 	private static final String URI_SECRET = "CANARY_S3cret";
 	private static final String CANARY_URI = "rediss://user:" + URI_SECRET + "@example.invalid:6379";
 
 	/**
-	 * RedisConfig extends AbstractConfig; with doLog=true the base class runs logAll() on
-	 * construction and dumps the whole parsed config at INFO. redis.uri is Type.STRING, so a
-	 * URI carrying embedded credentials would be logged verbatim. RedisConfig now constructs
-	 * the base with doLog=false, so nothing is dumped. Capture the INFO output (slf4j-simple
-	 * writes to System.err) and assert the credential never appears.
+	 * RedisConfig extends AbstractConfig, whose logAll() dumps the whole parsed config at INFO on
+	 * construction. redis.uri is now Type.PASSWORD, so the dump still runs (keeping the non-sensitive
+	 * config visible) but masks redis.uri as [hidden] instead of logging the embedded credentials.
+	 * Capture the INFO output (slf4j-simple writes to System.err) and assert the credential never
+	 * appears while the dump itself is present.
 	 */
 	@Test
-	void configDumpDoesNotLogRedisUriCredentials() {
+	void configDumpMasksRedisUriCredentials() {
 		Map<String, String> props = new HashMap<>();
 		props.put(RedisConfigDef.URI_CONFIG, CANARY_URI);
 
@@ -43,15 +43,18 @@ class SinkConnectorTest {
 			System.setErr(originalErr);
 		}
 
-		// Positive control: the value really is parsed into the config, so if the dump ran it
-		// would have logged it. Absence below therefore proves suppression, not a missed path.
-		Assertions.assertEquals(CANARY_URI, config.getString(RedisConfigDef.URI_CONFIG));
+		// Positive control: the value is still parsed and usable (read via getPassword now).
+		Assertions.assertEquals(CANARY_URI, config.getPassword(RedisConfigDef.URI_CONFIG).value());
 
 		String logged = captured.toString(StandardCharsets.UTF_8);
+		// The dump still runs (only the sensitive field is masked)...
+		Assertions.assertTrue(logged.contains("RedisSinkConfig values"),
+				"AbstractConfig.logAll() config dump should still run");
+		// ...but the redis.uri credential must be masked, never logged verbatim.
 		Assertions.assertFalse(logged.contains(URI_SECRET),
 				"redis.uri credential must not be logged by the config dump");
-		Assertions.assertFalse(logged.contains("RedisSinkConfig values"),
-				"AbstractConfig.logAll() config dump must be suppressed");
+		Assertions.assertTrue(logged.contains(RedisConfigDef.URI_CONFIG + " = [hidden]"),
+				"redis.uri must render as [hidden] in the config dump");
 	}
 
 	@Test

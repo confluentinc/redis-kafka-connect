@@ -112,7 +112,9 @@ public abstract class RedisConfigDef extends ConfigDef {
 		define(HOST_CONFIG, Type.STRING, HOST_DEFAULT, Importance.HIGH, HOST_DOC);
 		define(PORT_CONFIG, Type.INT, PORT_DEFAULT, Importance.HIGH, PORT_DOC);
 		define(DATABASE_CONFIG, Type.INT, DATABASE_DEFAULT, Importance.MEDIUM, DATABASE_DOC);
-		define(URI_CONFIG, Type.STRING, URI_DEFAULT, Importance.MEDIUM, URI_DOC);
+		// Type.PASSWORD (not STRING): redis.uri can embed user:password@host, so this masks it
+		// as [hidden] in AbstractConfig.logAll() instead of dumping the credentials verbatim.
+		define(URI_CONFIG, Type.PASSWORD, URI_DEFAULT, Importance.MEDIUM, URI_DOC);
 		define(TLS_CONFIG, Type.BOOLEAN, TLS_DEFAULT, Importance.MEDIUM, TLS_DOC);
 		define(INSECURE_CONFIG, Type.BOOLEAN, INSECURE_DEFAULT, Importance.MEDIUM, INSECURE_DOC);
 		define(PASSWORD_CONFIG, Type.PASSWORD, PASSWORD_DEFAULT, Importance.MEDIUM, PASSWORD_DOC);
