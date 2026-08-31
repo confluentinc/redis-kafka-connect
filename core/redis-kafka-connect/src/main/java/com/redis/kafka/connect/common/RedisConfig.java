@@ -47,11 +47,9 @@ public abstract class RedisConfig extends AbstractConfig {
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
-        // doLog=false: suppress AbstractConfig.logAll(), which dumps the whole parsed
-        // configuration at INFO. redis.uri is Type.STRING and can embed user:password@host,
-        // so the dump would log connection credentials verbatim. Callers already emit their
-        // own contextual log lines (e.g. the validator's "Validating Redis connection configs").
-        super(config, originals, false);
+        // redis.uri is Type.PASSWORD (see RedisConfigDef), so AbstractConfig.logAll() masks it as
+        // [hidden] in the config dump; the rest of the (non-sensitive) config is still logged.
+        super(config, originals);
     }
 
     public RedisURI uri() {
@@ -90,7 +88,9 @@ public abstract class RedisConfig extends AbstractConfig {
     }
 
     private RedisURI.Builder redisURIBuilder() {
-        String uri = getString(RedisConfigDef.URI_CONFIG);
+        // redis.uri is Type.PASSWORD, so read it via getPassword(); value() may be null/empty.
+        Password uriPassword = getPassword(RedisConfigDef.URI_CONFIG);
+        String uri = uriPassword == null ? null : uriPassword.value();
         if (StringUtils.hasLength(uri)) {
             return RedisURI.builder(RedisURI.create(uri));
         }
