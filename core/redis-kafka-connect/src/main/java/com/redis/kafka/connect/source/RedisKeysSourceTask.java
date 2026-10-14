@@ -15,6 +15,7 @@
  */
 package com.redis.kafka.connect.source;
 
+import com.redis.kafka.connect.common.CleanupSteps;
 import com.redis.kafka.connect.common.ManifestVersionProvider;
 import com.redis.spring.batch.item.redis.RedisItemReader;
 import com.redis.spring.batch.item.redis.common.KeyValue;
@@ -61,26 +62,36 @@ public class RedisKeysSourceTask extends SourceTask {
 
 	@Override
 	public void start(Map<String, String> props) {
-		RedisKeysSourceConfig config = new RedisKeysSourceConfig(props);
-		this.topic = config.getTopicName();
-		this.batchSize = Math.toIntExact(config.getBatchSize());
-		this.client = config.client();
-		reader = RedisItemReader.struct();
-		// Use a random job name to not interfere with other key source tasks
-		reader.setName(UUID.randomUUID().toString());
-		reader.setClient(client);
-		reader.setMode(config.getMode());
-		reader.setPoolSize(config.getPoolSize());
-		reader.setDatabase(config.uri().getDatabase());
-		reader.setKeyPattern(config.getKeyPattern());
-		reader.setChunkSize(batchSize);
-		if (!config.getIdleTimeout().isNegative() && !config.getIdleTimeout().isZero()) {
-			reader.setIdleTimeout(config.getIdleTimeout());
-		}
 		try {
-			reader.open(new ExecutionContext());
-		} catch (ItemStreamException e) {
-			throw new RetriableException("Could not open reader", e);
+			RedisKeysSourceConfig config = new RedisKeysSourceConfig(props);
+			this.topic = config.getTopicName();
+			this.batchSize = Math.toIntExact(config.getBatchSize());
+			this.client = config.client();
+			reader = RedisItemReader.struct();
+			// Use a random job name to not interfere with other key source tasks
+			reader.setName(UUID.randomUUID().toString());
+			reader.setClient(client);
+			reader.setMode(config.getMode());
+			reader.setPoolSize(config.getPoolSize());
+			reader.setDatabase(config.uri().getDatabase());
+			reader.setKeyPattern(config.getKeyPattern());
+			reader.setChunkSize(batchSize);
+			if (!config.getIdleTimeout().isNegative() && !config.getIdleTimeout().isZero()) {
+				reader.setIdleTimeout(config.getIdleTimeout());
+			}
+			try {
+				reader.open(new ExecutionContext());
+			} catch (ItemStreamException e) {
+				throw new RetriableException("Could not open reader", e);
+			}
+		} catch (RuntimeException e) {
+			// Release client resources (Netty threads) eagerly rather than relying on the runtime calling stop()
+			try {
+				stop();
+			} catch (RuntimeException suppressed) {
+				e.addSuppressed(suppressed);
+			}
+			throw e;
 		}
 	}
 
@@ -97,15 +108,22 @@ public class RedisKeysSourceTask extends SourceTask {
 
 	@Override
 	public void stop() {
-		if (reader != null) {
-			reader.close();
-			reader = null;
-		}
-		if (client != null) {
-			client.shutdown();
-			client.getResources().shutdown();
-			client = null;
-		}
+		// Every step runs even if an earlier one fails, so a failed close never skips client shutdown
+		CleanupSteps cleanup = new CleanupSteps();
+		cleanup.run(() -> {
+			if (reader != null) {
+				reader.close();
+			}
+		});
+		reader = null;
+		cleanup.run(() -> {
+			if (client != null) {
+				client.shutdown();
+				client.getResources().shutdown();
+			}
+		});
+		client = null;
+		cleanup.rethrow();
 	}
 
 	private SourceRecord convert(KeyValue<String> input) {

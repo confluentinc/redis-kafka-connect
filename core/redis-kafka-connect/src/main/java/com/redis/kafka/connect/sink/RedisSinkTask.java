@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.redis.kafka.connect.common.CleanupSteps;
 import com.redis.kafka.connect.common.ManifestVersionProvider;
 import com.redis.lettucemod.RedisModulesUtils;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
@@ -104,31 +105,41 @@ public class RedisSinkTask extends SinkTask {
 
     @Override
     public void start(final Map<String, String> props) {
-        config = new RedisSinkConfig(props);
-        jsonConverter = new JsonConverter();
-        jsonConverter.configure(Collections.singletonMap("schemas.enable", "false"), false);
-        client = config.client();
-        connection = RedisModulesUtils.connection(client);
-        writer = RedisItemWriter.operation(ByteArrayCodec.INSTANCE, new ConditionalDel(operation(), del()));
-        writer.setClient(client);
-        writer.setMultiExec(config.isMultiExec());
-        writer.setWaitReplicas(config.getWaitReplicas());
-        writer.setWaitTimeout(config.getWaitTimeout());
-        writer.setPoolSize(config.getPoolSize());
-        writer.open(new ExecutionContext());
-        java.util.Set<TopicPartition> assignment = this.context.assignment();
-        if (CollectionUtils.isEmpty(assignment)) {
-            return;
+        try {
+            config = new RedisSinkConfig(props);
+            jsonConverter = new JsonConverter();
+            jsonConverter.configure(Collections.singletonMap("schemas.enable", "false"), false);
+            client = config.client();
+            connection = RedisModulesUtils.connection(client);
+            writer = RedisItemWriter.operation(ByteArrayCodec.INSTANCE, new ConditionalDel(operation(), del()));
+            writer.setClient(client);
+            writer.setMultiExec(config.isMultiExec());
+            writer.setWaitReplicas(config.getWaitReplicas());
+            writer.setWaitTimeout(config.getWaitTimeout());
+            writer.setPoolSize(config.getPoolSize());
+            writer.open(new ExecutionContext());
+            java.util.Set<TopicPartition> assignment = this.context.assignment();
+            if (CollectionUtils.isEmpty(assignment)) {
+                return;
+            }
+            Map<TopicPartition, Long> partitionOffsets = new HashMap<>(assignment.size());
+            for (SinkOffsetState state : offsetStates(assignment)) {
+                partitionOffsets.put(state.topicPartition(), state.offset());
+                log.info("Requesting offset {} for {}", state.offset(), state.topicPartition());
+            }
+            for (TopicPartition topicPartition : assignment) {
+                partitionOffsets.putIfAbsent(topicPartition, 0L);
+            }
+            this.context.offset(partitionOffsets);
+        } catch (RuntimeException e) {
+            // Release client resources (Netty threads) eagerly rather than relying on the runtime calling stop()
+            try {
+                stop();
+            } catch (RuntimeException suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
         }
-        Map<TopicPartition, Long> partitionOffsets = new HashMap<>(assignment.size());
-        for (SinkOffsetState state : offsetStates(assignment)) {
-            partitionOffsets.put(state.topicPartition(), state.offset());
-            log.info("Requesting offset {} for {}", state.offset(), state.topicPartition());
-        }
-        for (TopicPartition topicPartition : assignment) {
-            partitionOffsets.putIfAbsent(topicPartition, 0L);
-        }
-        this.context.offset(partitionOffsets);
     }
 
     private Operation<byte[], byte[], SinkRecord, Object> del() {
@@ -341,16 +352,28 @@ public class RedisSinkTask extends SinkTask {
 
     @Override
     public void stop() {
-        if (writer != null) {
-            writer.close();
-        }
-        if (connection != null) {
-            connection.close();
-        }
-        if (client != null) {
-            client.shutdown();
-            client.getResources().shutdown();
-        }
+        // Every step runs even if an earlier one fails, so a failed close never skips client shutdown
+        CleanupSteps cleanup = new CleanupSteps();
+        cleanup.run(() -> {
+            if (writer != null) {
+                writer.close();
+            }
+        });
+        writer = null;
+        cleanup.run(() -> {
+            if (connection != null) {
+                connection.close();
+            }
+        });
+        connection = null;
+        cleanup.run(() -> {
+            if (client != null) {
+                client.shutdown();
+                client.getResources().shutdown();
+            }
+        });
+        client = null;
+        cleanup.rethrow();
     }
 
     @Override

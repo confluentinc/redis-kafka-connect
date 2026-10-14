@@ -31,6 +31,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.springframework.batch.item.ExecutionContext;
 
+import com.redis.kafka.connect.common.CleanupSteps;
 import com.redis.kafka.connect.common.ManifestVersionProvider;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader;
 import com.redis.spring.batch.item.redis.reader.StreamItemReader.AckPolicy;
@@ -77,12 +78,22 @@ public class RedisStreamSourceTask extends SourceTask {
 
 	@Override
 	public void start(Map<String, String> props) {
-		this.config = new RedisStreamSourceConfig(props);
-		this.converter = new StreamMessageConverter(clock, config);
-		this.client = config.client();
-		int taskId = Integer.parseInt(props.getOrDefault(TASK_ID, String.valueOf(0)));
-		this.reader = reader(client, taskId, config);
-		reader.open(new ExecutionContext());
+		try {
+			this.config = new RedisStreamSourceConfig(props);
+			this.converter = new StreamMessageConverter(clock, config);
+			this.client = config.client();
+			int taskId = Integer.parseInt(props.getOrDefault(TASK_ID, String.valueOf(0)));
+			this.reader = reader(client, taskId, config);
+			reader.open(new ExecutionContext());
+		} catch (RuntimeException e) {
+			// Release client resources (Netty threads) eagerly rather than relying on the runtime calling stop()
+			try {
+				stop();
+			} catch (RuntimeException suppressed) {
+				e.addSuppressed(suppressed);
+			}
+			throw e;
+		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -144,15 +155,22 @@ public class RedisStreamSourceTask extends SourceTask {
 
 	@Override
 	public void stop() {
-		if (reader != null) {
-			reader.close();
-			reader = null;
-		}
-		if (client != null) {
-			client.shutdown();
-			client.getResources().shutdown();
-			client = null;
-		}
+		// Every step runs even if an earlier one fails, so a failed close never skips client shutdown
+		CleanupSteps cleanup = new CleanupSteps();
+		cleanup.run(() -> {
+			if (reader != null) {
+				reader.close();
+			}
+		});
+		reader = null;
+		cleanup.run(() -> {
+			if (client != null) {
+				client.shutdown();
+				client.getResources().shutdown();
+			}
+		});
+		client = null;
+		cleanup.rethrow();
 	}
 
 	@Override

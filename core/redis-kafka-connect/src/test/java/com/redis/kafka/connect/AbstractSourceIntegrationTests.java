@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.item.ItemStreamException;
 import org.springframework.util.Assert;
 
 import com.redis.kafka.connect.common.RedisConfigDef;
@@ -465,6 +466,32 @@ abstract class AbstractSourceIntegrationTests extends AbstractTestBase {
                 Assertions.assertEquals(compare.expected, compare.actual);
             }
         }
+    }
+
+    // With no idle timeout the live reader job never ends, so reader.close() times out and throws;
+    // stop() must still shut down the Redis client
+    @Test
+    void stopKeysLiveReleasesRedisClientWhenReaderCloseFails(TestInfo info) throws Exception {
+        GeneratorItemReader generator = generator(100);
+        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+        writer.setClient(redisClient);
+        run(info, step(info, 1, generator, null, writer));
+        enableKeyspaceNotifications();
+        long baseline = lettuceThreadCount();
+        startKeysSourceTask(RedisKeysSourceConfigDef.TOPIC_CONFIG, "mytopic");
+        Assertions.assertTrue(lettuceThreadCount() > baseline);
+        try {
+            keysSourceTask.stop();
+        } catch (ItemStreamException e) {
+            // Expected while reader.close() cannot stop the reader job
+        }
+        awaitUntil(() -> lettuceThreadCount() == baseline);
+    }
+
+    private static long lettuceThreadCount() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.isAlive() && t.getName().startsWith("lettuce-"))
+                .count();
     }
 
     private static class Compare {
