@@ -1,5 +1,6 @@
 package com.redis.kafka.connect;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionException;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.util.Assert;
@@ -465,6 +467,52 @@ abstract class AbstractSourceIntegrationTests extends AbstractTestBase {
                 Assertions.assertEquals(compare.expected, compare.actual);
             }
         }
+    }
+
+    // No idle timeout (the default), so the reader job never ends on its own
+    @Test
+    void stopKeysLiveEndsReaderJob(TestInfo info) throws Exception {
+        GeneratorItemReader generator = generator(100);
+        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+        writer.setClient(redisClient);
+        run(info, step(info, 1, generator, null, writer));
+        enableKeyspaceNotifications();
+        long lettuceThreads = lettuceThreadCount();
+        startKeysSourceTask(RedisKeysSourceConfigDef.TOPIC_CONFIG, "mytopic", RedisKeysSourceConfigDef.BATCH_SIZE_CONFIG, "10");
+        awaitUntil(() -> !keysSourceTask.poll().isEmpty());
+        assertStopEndsReaderJob(lettuceThreads);
+    }
+
+    // More keys than the value queue holds and nothing polling, so the reader job blocks writing to it
+    @Test
+    void stopKeysLiveEndsReaderJobBlockedOnFullQueue(TestInfo info) throws Exception {
+        GeneratorItemReader generator = generator(RedisItemReader.DEFAULT_QUEUE_CAPACITY + 2000);
+        RedisItemWriter<String, String, KeyValue<String>> writer = RedisItemWriter.struct();
+        writer.setClient(redisClient);
+        run(info, step(info, 100, generator, null, writer));
+        enableKeyspaceNotifications();
+        long lettuceThreads = lettuceThreadCount();
+        startKeysSourceTask(RedisKeysSourceConfigDef.TOPIC_CONFIG, "mytopic");
+        awaitUntil(() -> keysSourceTask.getReader().getQueue().remainingCapacity() == 0);
+        assertStopEndsReaderJob(lettuceThreads);
+    }
+
+    private void assertStopEndsReaderJob(long lettuceThreadsBeforeStart) {
+        JobExecution jobExecution = keysSourceTask.getReader().getJobExecution();
+        Assertions.assertTrue(jobExecution.isRunning());
+        long start = System.nanoTime();
+        Assertions.assertDoesNotThrow(keysSourceTask::stop);
+        Assertions.assertTrue(Duration.ofNanos(System.nanoTime() - start).compareTo(Duration.ofSeconds(5)) < 0,
+                "stop() exceeded Connect's default graceful shutdown timeout");
+        Assertions.assertFalse(jobExecution.isRunning(), "Reader job still running after stop()");
+        // The task's Redis client is shut down too
+        awaitUntil(() -> lettuceThreadCount() == lettuceThreadsBeforeStart);
+    }
+
+    private static long lettuceThreadCount() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.isAlive() && t.getName().startsWith("lettuce-"))
+                .count();
     }
 
     private static class Compare {
