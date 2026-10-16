@@ -42,8 +42,15 @@ import io.lettuce.core.cluster.ClusterClientOptions;
 public abstract class RedisConfig extends AbstractConfig {
 
     private static final char[] EMPTY_PASSWORD = new char[0];
+    /** Credentials provider class for AWS IAM authentication (ElastiCache, MemoryDB). */
     public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY =
         "rediskafka.credentials.provider.aws.class";
+    /** Credentials provider class for Microsoft Entra ID authentication (Azure Managed Redis). */
+    public static final String REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY =
+        "rediskafka.credentials.provider.azure.class";
+    private static final String AUTHENTICATION_METHOD_CONFIG = "authentication.method";
+    private static final String AUTH_METHOD_IAM_ROLES = "IAM Roles";
+    private static final String AUTH_METHOD_ENTRA_ID = "Microsoft Entra ID application";
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
@@ -136,7 +143,7 @@ public abstract class RedisConfig extends AbstractConfig {
     private RedisCredentialsProvider getCredentialsProvider() {
         Map<String, Object> configs = new HashMap<>(originals());
 
-        String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        String className = credentialsProviderClassName(configs);
         if (!StringUtils.hasLength(className)) {
             logger.info("No credentials provider class configured, returning null");
             return null;
@@ -156,6 +163,26 @@ public abstract class RedisConfig extends AbstractConfig {
         } catch (ReflectiveOperationException e) {
           logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
           return null;
+        }
+    }
+
+    /**
+     * The credentials provider class for the configured authentication method: the AWS key for IAM
+     * Roles, the Azure key for Microsoft Entra ID. Any other method, or none, uses password
+     * authentication, so there is no provider.
+     */
+    private static String credentialsProviderClassName(Map<String, ?> configs) {
+        Object authMethod = configs.get(AUTHENTICATION_METHOD_CONFIG);
+        if (authMethod == null) {
+            return null;
+        }
+        switch (authMethod.toString()) {
+            case AUTH_METHOD_IAM_ROLES:
+                return (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+            case AUTH_METHOD_ENTRA_ID:
+                return (String) configs.get(REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY);
+            default:
+                return null;
         }
     }
 
