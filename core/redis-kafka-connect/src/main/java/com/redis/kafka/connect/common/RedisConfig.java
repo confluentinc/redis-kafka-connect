@@ -24,7 +24,6 @@ import java.util.Map;
 import io.lettuce.core.RedisCredentialsProvider;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.config.AbstractConfig;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.types.Password;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +48,9 @@ public abstract class RedisConfig extends AbstractConfig {
     /** Credentials provider class for Microsoft Entra ID authentication (Azure Managed Redis). */
     public static final String REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY =
         "rediskafka.credentials.provider.azure.class";
+    private static final String AUTHENTICATION_METHOD_CONFIG = "authentication.method";
+    private static final String AUTH_METHOD_IAM_ROLES = "IAM Roles";
+    private static final String AUTH_METHOD_ENTRA_ID = "Microsoft Entra ID application";
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
@@ -165,18 +167,23 @@ public abstract class RedisConfig extends AbstractConfig {
     }
 
     /**
-     * The credentials provider class to load: the AWS key for IAM authentication, or the Azure key
-     * for Microsoft Entra ID. Each cloud has its own key so neither is configured through the
-     * other's; setting both is a configuration error.
+     * The credentials provider class for the configured authentication method: the AWS key for IAM
+     * Roles, the Azure key for Microsoft Entra ID. Any other method, or none, uses password
+     * authentication, so there is no provider.
      */
-    static String credentialsProviderClassName(Map<String, ?> configs) {
-        String awsClass = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
-        String azureClass = (String) configs.get(REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY);
-        if (StringUtils.hasLength(awsClass) && StringUtils.hasLength(azureClass)) {
-            throw new ConfigException("Only one of " + REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY
-                + " and " + REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY + " may be set");
+    private static String credentialsProviderClassName(Map<String, ?> configs) {
+        Object authMethod = configs.get(AUTHENTICATION_METHOD_CONFIG);
+        if (authMethod == null) {
+            return null;
         }
-        return StringUtils.hasLength(awsClass) ? awsClass : azureClass;
+        switch (authMethod.toString()) {
+            case AUTH_METHOD_IAM_ROLES:
+                return (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+            case AUTH_METHOD_ENTRA_ID:
+                return (String) configs.get(REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY);
+            default:
+                return null;
+        }
     }
 
     public int getPoolSize() {
