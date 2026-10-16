@@ -24,6 +24,7 @@ import java.util.Map;
 import io.lettuce.core.RedisCredentialsProvider;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.types.Password;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,8 +43,12 @@ import io.lettuce.core.cluster.ClusterClientOptions;
 public abstract class RedisConfig extends AbstractConfig {
 
     private static final char[] EMPTY_PASSWORD = new char[0];
+    /** Credentials provider class for AWS IAM authentication (ElastiCache, MemoryDB). */
     public static final String REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY =
         "rediskafka.credentials.provider.aws.class";
+    /** Credentials provider class for Microsoft Entra ID authentication (Azure Managed Redis). */
+    public static final String REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY =
+        "rediskafka.credentials.provider.azure.class";
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     protected RedisConfig(RedisConfigDef config, Map<?, ?> originals) {
@@ -136,7 +141,7 @@ public abstract class RedisConfig extends AbstractConfig {
     private RedisCredentialsProvider getCredentialsProvider() {
         Map<String, Object> configs = new HashMap<>(originals());
 
-        String className = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        String className = credentialsProviderClassName(configs);
         if (!StringUtils.hasLength(className)) {
             logger.info("No credentials provider class configured, returning null");
             return null;
@@ -157,6 +162,21 @@ public abstract class RedisConfig extends AbstractConfig {
           logger.error("Failed to instantiate RedisCredentialsProvider: {}", className, e);
           return null;
         }
+    }
+
+    /**
+     * The credentials provider class to load: the AWS key for IAM authentication, or the Azure key
+     * for Microsoft Entra ID. Each cloud has its own key so neither is configured through the
+     * other's; setting both is a configuration error.
+     */
+    static String credentialsProviderClassName(Map<String, ?> configs) {
+        String awsClass = (String) configs.get(REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY);
+        String azureClass = (String) configs.get(REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY);
+        if (StringUtils.hasLength(awsClass) && StringUtils.hasLength(azureClass)) {
+            throw new ConfigException("Only one of " + REDIS_IAM_ASSUME_CREDENTIALS_PROVIDER_CLASS_KEY
+                + " and " + REDIS_ENTRA_ID_CREDENTIALS_PROVIDER_CLASS_KEY + " may be set");
+        }
+        return StringUtils.hasLength(awsClass) ? awsClass : azureClass;
     }
 
     public int getPoolSize() {
